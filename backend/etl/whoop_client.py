@@ -66,6 +66,9 @@ class WhoopClient:
             logger.warning("Access token expired — refreshing and retrying.")
             self.refresh_access_token()
             return self._get(path, params=params, retry=False)
+        if resp.status_code == 404:
+            logger.warning("No data found for %s (404) — skipping.", path)
+            return {"records": []}
         resp.raise_for_status()
         return resp.json()
 
