@@ -12,7 +12,7 @@ It will:
   4. Write WHOOP_ACCESS_TOKEN and WHOOP_REFRESH_TOKEN into ../.env
 
 Prerequisites: WHOOP_CLIENT_ID and WHOOP_CLIENT_SECRET must already be in .env,
-and http://localhost:8080 must be registered as a redirect URI in your WHOOP app.
+and http://localhost:8000/callback must be registered as a redirect URI in your WHOOP app.
 """
 
 import os
@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import requests
 from dotenv import load_dotenv
 
-REDIRECT_URI = "http://localhost:8080"
+REDIRECT_URI = "http://localhost:8000/callback"
 AUTH_URL = "https://api.prod.whoop.com/oauth/oauth2/auth"
 TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"
 SCOPES = "read:recovery read:sleep read:workout read:cycles offline"
@@ -55,7 +55,7 @@ class _CallbackHandler(BaseHTTPRequestHandler):
 
 def _start_server():
     global _server
-    _server = HTTPServer(("localhost", 8080), _CallbackHandler)
+    _server = HTTPServer(("localhost", 8000), _CallbackHandler)
     _server.serve_forever()
 
 
