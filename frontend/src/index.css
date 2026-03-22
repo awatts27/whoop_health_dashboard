@@ -1,0 +1,42 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:        #0d0d0f;
+  --surface:   #16181c;
+  --border:    #2a2d33;
+  --text:      #e8eaf0;
+  --muted:     #8b8fa8;
+  --accent:    #4fc3f7;
+  --green:     #66bb6a;
+  --yellow:    #ffca28;
+  --red:       #ef5350;
+  --orange:    #ffa726;
+  --purple:    #ab47bc;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+h1, h2, h3 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+input, textarea, select {
+  font-family: inherit;
+}

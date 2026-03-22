@@ -1,0 +1,51 @@
+name: Nightly WHOOP ETL
+
+on:
+  schedule:
+    # 08:00 UTC daily — runs after overnight WHOOP data is typically finalized
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: "Date to materialize (YYYY-MM-DD). Defaults to yesterday."
+        required: false
+        default: ""
+
+jobs:
+  etl:
+    name: Fetch, transform, and load WHOOP data
+    runs-on: ubuntu-latest
+
+    env:
+      WHOOP_CLIENT_ID:     ${{ secrets.WHOOP_CLIENT_ID }}
+      WHOOP_CLIENT_SECRET: ${{ secrets.WHOOP_CLIENT_SECRET }}
+      WHOOP_ACCESS_TOKEN:  ${{ secrets.WHOOP_ACCESS_TOKEN }}
+      WHOOP_REFRESH_TOKEN: ${{ secrets.WHOOP_REFRESH_TOKEN }}
+      DATABASE_URL:        ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Run WHOOP ETL (fetch + transform + upsert)
+        working-directory: backend/etl
+        run: python run_etl.py
+
+      - name: Materialize daily_summary
+        working-directory: backend/etl
+        run: |
+          TARGET="${{ github.event.inputs.target_date }}"
+          if [ -n "$TARGET" ]; then
+            python materialize_daily_summary.py "$TARGET"
+          else
+            python materialize_daily_summary.py
+          fi
