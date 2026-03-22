@@ -7,16 +7,17 @@ Run this whenever your tokens expire or become invalid:
 
 It will:
   1. Open your browser to the WHOOP authorization page
-  2. Start a local server to catch the callback
+  2. Start a local server on port 8181 to catch the callback
   3. Exchange the auth code for tokens
   4. Write WHOOP_ACCESS_TOKEN and WHOOP_REFRESH_TOKEN into ../.env
 
 Prerequisites: WHOOP_CLIENT_ID and WHOOP_CLIENT_SECRET must already be in .env,
-and http://localhost:8000/callback must be registered as a redirect URI in your WHOOP app.
+and http://localhost:8181/callback must be registered as a redirect URI in your WHOOP app.
 """
 
 import os
 import re
+import secrets
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -25,12 +26,13 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import requests
 from dotenv import load_dotenv
 
-REDIRECT_URI = "http://localhost:8000/callback"
+REDIRECT_URI = "http://localhost:8181/callback"
 AUTH_URL = "https://api.prod.whoop.com/oauth/oauth2/auth"
 TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"
 SCOPES = "read:recovery read:sleep read:workout read:cycles offline"
 
 _auth_code: str | None = None
+_state: str = secrets.token_urlsafe(16)
 _server: HTTPServer | None = None
 
 
@@ -38,15 +40,21 @@ class _CallbackHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         global _auth_code
         qs = parse_qs(urlparse(self.path).query)
-        if "code" in qs:
+        returned_state = qs.get("state", [None])[0]
+        if returned_state != _state:
+            self.send_response(400)
+            self.end_headers()
+            self.wfile.write(b"<h2>Error: state mismatch (possible CSRF). Try again.</h2>")
+        elif "code" in qs:
             _auth_code = qs["code"][0]
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"<h2>Authorization successful! You can close this tab.</h2>")
         else:
+            error = qs.get("error", ["unknown"])[0]
             self.send_response(400)
             self.end_headers()
-            self.wfile.write(b"<h2>Error: no code in callback.</h2>")
+            self.wfile.write(f"<h2>Error: {error}</h2>".encode())
         threading.Thread(target=_server.shutdown, daemon=True).start()
 
     def log_message(self, *args):
@@ -55,7 +63,7 @@ class _CallbackHandler(BaseHTTPRequestHandler):
 
 def _start_server():
     global _server
-    _server = HTTPServer(("localhost", 8000), _CallbackHandler)
+    _server = HTTPServer(("localhost", 8181), _CallbackHandler)
     _server.serve_forever()
 
 
@@ -74,7 +82,13 @@ def main():
     t.start()
 
     # Open browser
-    params = urlencode({"client_id": client_id, "redirect_uri": REDIRECT_URI, "response_type": "code", "scope": SCOPES})
+    params = urlencode({
+        "client_id": client_id,
+        "redirect_uri": REDIRECT_URI,
+        "response_type": "code",
+        "scope": SCOPES,
+        "state": _state,
+    })
     url = f"{AUTH_URL}?{params}"
     print(f"Opening browser for WHOOP authorization...\n{url}\n")
     webbrowser.open(url)
@@ -106,7 +120,6 @@ def main():
     if os.path.exists(env_path):
         with open(env_path, "r") as f:
             content = f.read()
-        # Update existing keys if present, otherwise append
         for key, val in [("WHOOP_ACCESS_TOKEN", access_token), ("WHOOP_REFRESH_TOKEN", refresh_token)]:
             if re.search(rf"(?m)^{key}=", content):
                 content = re.sub(rf"(?m)^{key}=.*$", f"{key}={val}", content)
