@@ -9,7 +9,7 @@ All credentials are read from environment variables:
 """
 
 import os
-import time
+import re
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -53,11 +53,23 @@ class WhoopClient:
         payload = resp.json()
         self.access_token = payload["access_token"]
         self.refresh_token = payload.get("refresh_token", self.refresh_token)
-        # Propagate back to environment so downstream processes can read the
-        # updated tokens without re-authenticating.
         os.environ["WHOOP_ACCESS_TOKEN"] = self.access_token
         os.environ["WHOOP_REFRESH_TOKEN"] = self.refresh_token
+        self._persist_tokens_to_env_file()
         logger.info("WHOOP access token refreshed successfully.")
+
+    def _persist_tokens_to_env_file(self) -> None:
+        """Write updated tokens back to the .env file so future runs use them."""
+        env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
+        env_path = os.path.abspath(env_path)
+        if not os.path.exists(env_path):
+            return
+        with open(env_path, "r") as f:
+            content = f.read()
+        content = re.sub(r"(?m)^WHOOP_ACCESS_TOKEN=.*$", f"WHOOP_ACCESS_TOKEN={self.access_token}", content)
+        content = re.sub(r"(?m)^WHOOP_REFRESH_TOKEN=.*$", f"WHOOP_REFRESH_TOKEN={self.refresh_token}", content)
+        with open(env_path, "w") as f:
+            f.write(content)
 
     def _get(self, path: str, params: dict | None = None, retry: bool = True) -> Any:
         url = f"{WHOOP_BASE_URL}{path}"
